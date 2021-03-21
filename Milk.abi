@@ -35,6 +35,19 @@
 			{
 				"indexed": false,
 				"internalType": "uint256",
+				"name": "ethCollected",
+				"type": "uint256"
+			}
+		],
+		"name": "CharityCollected",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": false,
+				"internalType": "uint256",
 				"name": "minTokensBeforeSwap",
 				"type": "uint256"
 			}
@@ -139,6 +152,19 @@
 	},
 	{
 		"inputs": [],
+		"name": "_ethReservedForCharity",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
 		"name": "_liquidityFee",
 		"outputs": [
 			{
@@ -166,6 +192,19 @@
 	{
 		"inputs": [],
 		"name": "_taxFee",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "_totalCharityCollected",
 		"outputs": [
 			{
 				"internalType": "uint256",
@@ -267,6 +306,13 @@
 			}
 		],
 		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "collectCharity",
+		"outputs": [],
+		"stateMutability": "nonpayable",
 		"type": "function"
 	},
 	{
