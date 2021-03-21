@@ -442,6 +442,11 @@ contract Ownable is Context {
         require(_owner == _msgSender(), "Ownable: caller is not the owner");
         _;
     }
+    
+    modifier onlyCharity() {
+        require(_charity == _msgSender(), "Caller is not the charity address");
+        _;
+    }
 
      /**
      * @dev Leaves the contract without owner. It will not be possible to call
@@ -706,6 +711,9 @@ contract Milk is Context, IERC20, Ownable {
     uint256 public _liquidityFee = 4;
     uint256 public _charityPercentageOfLiquidity = 50;
     uint256 private _previousLiquidityFee = _liquidityFee;
+    
+    uint256 public _ethReservedForCharity;
+    uint256 public _totalCharityCollected;
 
     IUniswapV2Router02 public immutable uniswapV2Router;
     address public immutable uniswapV2Pair;
@@ -723,6 +731,9 @@ contract Milk is Context, IERC20, Ownable {
         uint256 ethReceived,
         uint256 tokensIntoLiqudity
     );
+    
+    event CharityCollected(uint256 ethCollected);
+
     
     modifier lockTheSwap {
         inSwapAndLiquify = true;
@@ -1042,9 +1053,12 @@ contract Milk is Context, IERC20, Ownable {
         _tokenTransfer(from,to,amount,takeFee);
     }
     
-    function donate(uint256 ethAmount) private
+    function collectCharity() public onlyCharity
     {
-        charity().transfer(ethAmount);
+        charity().transfer(_ethReservedForCharity);
+        emit CharityCollected(_ethReservedForCharity);
+        _totalCharityCollected = _totalCharityCollected.add(_ethReservedForCharity);
+        _ethReservedForCharity = 0;
     }
 
     function swapAndLiquify(uint256 contractTokenBalance) private lockTheSwap {
@@ -1057,22 +1071,23 @@ contract Milk is Context, IERC20, Ownable {
         // this is so that we can capture exactly the amount of ETH that the
         // swap creates, and not make the liquidity event include any ETH that
         // has been manually sent to the contract
-        uint256 initialBalance = address(this).balance;
+        uint256 initialBalance = address(this).balance.sub(_ethReservedForCharity);
 
         // swap tokens for ETH
         swapTokensForEth(half); // <- this breaks the ETH -> MILK swap when swap+liquify is triggered
 
         // how much ETH did we just swap into?
-        uint256 newBalance = address(this).balance.sub(initialBalance);
+        uint256 newBalance = address(this).balance.sub(initialBalance).sub(_ethReservedForCharity);
         
         
         //Now donate the appropriate amount to the charity address
         uint256 balanceToCharity = newBalance.mul(_charityPercentageOfLiquidity.div(10**2));
         uint256 tokensExtra = otherHalf.mul(_charityPercentageOfLiquidity.div(10**2));
-        donate(balanceToCharity);
+        
+        _ethReservedForCharity = _ethReservedForCharity.add(balanceToCharity);
         
         //How much eth is left?
-        newBalance = address(this).balance.sub(balanceToCharity);
+        newBalance = address(this).balance.sub(_ethReservedForCharity);
         
         //how many tokens are left?
         otherHalf = otherHalf.sub(tokensExtra);
