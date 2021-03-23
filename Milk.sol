@@ -723,7 +723,6 @@ contract Milk is Context, IERC20, Ownable {
     uint256 private _charityPercentageOfLiquidity = 50;
     uint256 private _previousLiquidityFee = _liquidityFee;
     
-    uint256 private _ethReservedForCharity = 0;
     uint256 private _totalCharityCollected = 0;
 
     IUniswapV2Router02 public immutable uniswapV2Router;
