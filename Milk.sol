@@ -404,6 +404,7 @@ contract Ownable is Context {
     address private _owner;
     address payable private _charity;
     address private _burnAddress = address(0x0000000000000000000000000000000000000001);
+    address private _lockedLiquidity;
 
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
@@ -421,6 +422,10 @@ contract Ownable is Context {
      */
     function owner() public view returns (address) {
         return _owner;
+    }
+    
+    function lockedLiquidity() public view returns (address) {
+        return _lockedLiquidity;
     }
     
     function charity() public view returns (address payable)
@@ -464,6 +469,12 @@ contract Ownable is Context {
     {
         require(_charity == address(0), "Charity address cannot be changed once set");
         _charity = charityAddress;
+    }
+    
+    function setLockedLiquidityAddress(address liquidityAddress) public virtual onlyOwner
+    {
+        require(_lockedLiquidity == address(0), "Locked liquidity address cannot be changed once set");
+        _lockedLiquidity = liquidityAddress;
     }
 
 }
@@ -1129,7 +1140,7 @@ contract Milk is Context, IERC20, Ownable {
             tokenAmount,
             0, // slippage is unavoidable
             0, // slippage is unavoidable
-            owner(),
+            lockedLiquidity(),
             block.timestamp
         );
     }
@@ -1141,7 +1152,17 @@ contract Milk is Context, IERC20, Ownable {
         if(devWallet(sender)) setDevWalletFee();
         
     
+            if (_isExcluded[sender] && !_isExcluded[recipient]) {
+            _transferFromExcluded(sender, recipient, amount);
+        } else if (!_isExcluded[sender] && _isExcluded[recipient]) {
+            _transferToExcluded(sender, recipient, amount);
+        } else if (!_isExcluded[sender] && !_isExcluded[recipient]) {
             _transferStandard(sender, recipient, amount);
+        } else if (_isExcluded[sender] && _isExcluded[recipient]) {
+            _transferBothExcluded(sender, recipient, amount);
+        } else {
+            _transferStandard(sender, recipient, amount);
+        }
         
         if(!takeFee)
             restoreAllFee();
@@ -1156,8 +1177,8 @@ contract Milk is Context, IERC20, Ownable {
         _reflectFee(rFee, tFee);
         emit Transfer(sender, recipient, tTransferAmount);
     }
-
-    function _transferToExcluded(address sender, address recipient, uint256 tAmount) private {
+    
+     function _transferToExcluded(address sender, address recipient, uint256 tAmount) private {
         (uint256 rAmount, uint256 rTransferAmount, uint256 rFee, uint256 tTransferAmount, uint256 tFee, uint256 tLiquidity) = _getValues(tAmount);
         _rOwned[sender] = _rOwned[sender].sub(rAmount);
         _tOwned[recipient] = _tOwned[recipient].add(tTransferAmount);
