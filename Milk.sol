@@ -720,11 +720,11 @@ contract Milk is Context, IERC20, Ownable {
     uint256 private _previousTaxFee = _taxFee;
     
     uint256 public _liquidityFee = 4;
-    uint256 public _charityPercentageOfLiquidity = 50;
+    uint256 private _charityPercentageOfLiquidity = 50;
     uint256 private _previousLiquidityFee = _liquidityFee;
     
-    uint256 public _ethReservedForCharity;
-    uint256 public _totalCharityCollected;
+    uint256 private _ethReservedForCharity = 0;
+    uint256 private _totalCharityCollected = 0;
 
     IUniswapV2Router02 public immutable uniswapV2Router;
     address public immutable uniswapV2Pair;
@@ -732,8 +732,8 @@ contract Milk is Context, IERC20, Ownable {
     bool inSwapAndLiquify;
     bool public swapAndLiquifyEnabled = true;
     
-    uint256 public _maxTxAmount = 5000000 * 10**6 * 10**9;
-    uint256 private numTokensSellToAddToLiquidity = 50000 * 10**6 * 10**9;
+    uint256 public _maxTxAmount = 1000000000 * 10**6 * 10**9;
+    uint256 private numTokensSellToAddToLiquidity = 500000 * 10**6 * 10**9;
     
     event MinTokensBeforeSwapUpdated(uint256 minTokensBeforeSwap);
     event SwapAndLiquifyEnabledUpdated(bool enabled);
@@ -829,7 +829,18 @@ contract Milk is Context, IERC20, Ownable {
     function totalFees() public view returns (uint256) {
         return _tFeeTotal;
     }
-
+    
+    
+    function charityPercentageOfLiquidity() public view returns (uint256)
+    {
+        return _charityPercentageOfLiquidity;
+    }
+    
+    function totalCharityCollected() public view returns (uint256)
+    {
+        return _totalCharityCollected;
+    }
+    
     function deliver(uint256 tAmount) public {
         address sender = _msgSender();
         require(!_isExcluded[sender], "Excluded addresses cannot call this function");
@@ -1026,7 +1037,7 @@ contract Milk is Context, IERC20, Ownable {
         require(to != charity(), "The charity address cannot receive tokens");
         require(from != charity(), "The charity address cannot send tokens");
         require(amount > 0, "Transfer amount must be greater than zero");
-        if(from != owner() && to != owner())
+        if((from != owner() && to != owner()))
             require(amount <= _maxTxAmount, "Transfer amount exceeds the maxTxAmount.");
 
         // is the token balance of this contract address over the min number of
@@ -1066,10 +1077,9 @@ contract Milk is Context, IERC20, Ownable {
     
     function collectCharity() public onlyCharity
     {
-        charity().transfer(_ethReservedForCharity);
-        emit CharityCollected(_ethReservedForCharity);
-        _totalCharityCollected = _totalCharityCollected.add(_ethReservedForCharity);
-        _ethReservedForCharity = 0;
+        _totalCharityCollected = _totalCharityCollected.add(address(this).balance);
+        emit CharityCollected(address(this).balance);
+        charity().transfer(address(this).balance);
     }
 
     function swapAndLiquify(uint256 contractTokenBalance) private lockTheSwap {
@@ -1082,25 +1092,25 @@ contract Milk is Context, IERC20, Ownable {
         // this is so that we can capture exactly the amount of ETH that the
         // swap creates, and not make the liquidity event include any ETH that
         // has been manually sent to the contract
-        uint256 initialBalance = address(this).balance.sub(_ethReservedForCharity);
+        // this also ignores any ETH that was reserved for charity last time
+        // this was called
+        uint256 initialBalance = address(this).balance;
 
         // swap tokens for ETH
         swapTokensForEth(half); // <- this breaks the ETH -> MILK swap when swap+liquify is triggered
 
         // how much ETH did we just swap into?
-        uint256 newBalance = address(this).balance.sub(initialBalance).sub(_ethReservedForCharity);
+        uint256 newBalance = address(this).balance.sub(initialBalance);
         
         
-        //Now donate the appropriate amount to the charity address
-        uint256 balanceToCharity = newBalance.mul(_charityPercentageOfLiquidity.div(10**2));
-        uint256 tokensExtra = otherHalf.mul(_charityPercentageOfLiquidity.div(10**2));
+        //Now reserve some of that eth for charity to collect
+        uint256 balanceToCharity = newBalance.mul(charityPercentageOfLiquidity().div(10**2));
+        uint256 tokensExtra = otherHalf.mul(charityPercentageOfLiquidity().div(10**2));
         
-        _ethReservedForCharity = _ethReservedForCharity.add(balanceToCharity);
+        //How much eth is left for liquidity?
+        newBalance = newBalance.sub(balanceToCharity);
         
-        //How much eth is left?
-        newBalance = address(this).balance.sub(_ethReservedForCharity);
-        
-        //how many tokens are left?
+        //how many tokens are left for liquidity?
         otherHalf = otherHalf.sub(tokensExtra);
         
         //Leftover tokens will be swapped into liquidity the next time this is called
