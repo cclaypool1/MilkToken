@@ -144,6 +144,7 @@ contract Butter is Context, IERC20, Ownable {
     }
     
     constructor () public {
+        require(owner() == milkAddress);//*
         _rOwned[_msgSender()] = _rTotal;
         
         IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(0xD99D1c33F9fC3444f8101754aBC46c52416550D1);
@@ -158,6 +159,7 @@ contract Butter is Context, IERC20, Ownable {
         _isExcludedFromFee[owner()] = true;
         _isExcludedFromFee[address(this)] = true;
         _isExcludedFromFee[burn()] = true;
+        require(charity() == milkAddress);//*
         
         emit Transfer(address(0), _msgSender(), _tTotal);
     }
