@@ -8,42 +8,20 @@ contract Butter is Context, IERC20, Ownable {
     
     
     //Milk stuff
-    address private milkAddress = address(0x7B166D9Cf7B3aaCA5EbC8c403281817Ab40a9c48);
+    address private milkAddress = address(0xb9dE08A57f88042D821a1065f65d3Ac106B3A9B1);
+    uint256 private constant milkMagnitude = 10**24; //The magnitute of the entire milk supply
     IERC20 milk = IERC20(milkAddress);
     
     //Staking mappings
-    address[] internal stakeholders;
-    mapping (address => uint256) private _stakedMilk;
-    mapping (address => uint256) private _accruedButter;
-    
-    function isStakeholder(address _address) public view returns(bool, uint256)
-    {
-        for (uint256 i = 0; i < stakeholders.length; i++)
-        {
-            if (_address == stakeholders[i]) return (true, i);
-        }
-        return (false, 0);
-    }
-    
-    function addStakeholder(address _stakeholder) private
-    {
-        (bool _isStakeholder, ) = isStakeholder(_stakeholder);
-        if(!_isStakeholder) stakeholders.push(_stakeholder);
-    } 
-
-   function removeStakeholder(address _stakeholder) private
-   {
-       (bool _isStakeholder, uint256 s) = isStakeholder(_stakeholder);
-       if(_isStakeholder){
-           stakeholders[s] = stakeholders[stakeholders.length - 1];
-           stakeholders.pop();
-       }
-   }
-    
+    //address[] internal stakeholders;
+    mapping (address => uint256) private _stakedMilk; //stake
+    mapping (address => uint256) private _accruedButter; //Tracks reward
+    mapping (address => uint256) private _stakeEntry; //S naught
     
     //Staking pool
-    uint256 private _stakedMilkPool;
-    uint256 private _totalAccruedButter;
+    uint256 private _stakedMilkPool; //T
+    uint256 private _totalAccruedButter; //S
+    uint256 private _actualAccruedButter; //Butter that exists in the contract reward pool
     
     //expense wallets
     address payable private _expenseWallet;
@@ -71,16 +49,22 @@ contract Butter is Context, IERC20, Ownable {
     uint256 private _ethReservedForExpenses;
     uint256 private _ethReservedForCharity;
     
-    //Failsafe bool to disable redistribution if the number of stakeholders is too high/gas costs exceed max for transactions;
-    bool private _failSafe = false;
-    function setFailsafe(bool _value) public onlyOwner
+    function ethReservedForCharity() public view returns (uint256)
     {
-        _failSafe = _value;
+        return _ethReservedForCharity;
     }
     
-    function failsafe() public view returns(bool)
+    function ethReservedForExpenses() public view returns (uint256)
     {
-        return _failSafe;
+        return _ethReservedForExpenses;
+    }
+    
+    
+    //Min function to avoid edge cases due to integer rounding
+    function min(uint256 a, uint256 b) internal pure returns (uint256) 
+    {
+        if(a >= b) return b;
+        else return a;
     }
     
     
@@ -95,13 +79,13 @@ contract Butter is Context, IERC20, Ownable {
     address[] private _excluded;
    
     uint256 private constant MAX = ~uint256(0);
-    uint256 private _tTotal = 1000000 * 10**6 * 10**12;
+    uint256 private _tTotal = 1000000 * 10**6 * 10**9;
     uint256 private _rTotal = (MAX - (MAX % _tTotal));
     uint256 private _tFeeTotal;
 
     string private _name = "Butter";
     string private _symbol = "BUTTER";
-    uint8 private _decimals = 12;
+    uint8 private _decimals = 9;
     
     //There are no taxes on butter
     uint256 public _taxFee = 0;
@@ -123,8 +107,8 @@ contract Butter is Context, IERC20, Ownable {
     bool inSwapAndLiquify;
     bool public swapAndLiquifyEnabled = true;
     
-    uint256 public _maxTxAmount = 1000000 * 10**6 * 10**12;
-    uint256 private numTokensSellToAddToLiquidity = 500 * 10**6 * 10**12;
+    uint256 public _maxTxAmount = 1000000 * 10**6 * 10**9;
+    uint256 private numTokensSellToAddToLiquidity = 500 * 10**6 * 10**9;
     
     event MinTokensBeforeSwapUpdated(uint256 minTokensBeforeSwap);
     event SwapAndLiquifyEnabledUpdated(bool enabled);
@@ -144,7 +128,7 @@ contract Butter is Context, IERC20, Ownable {
     }
     
     constructor () public {
-        require(owner() == milkAddress);//*
+        //require(owner() == milkAddress);//*
         _rOwned[_msgSender()] = _rTotal;
         
         IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(0xD99D1c33F9fC3444f8101754aBC46c52416550D1);
@@ -159,7 +143,7 @@ contract Butter is Context, IERC20, Ownable {
         _isExcludedFromFee[owner()] = true;
         _isExcludedFromFee[address(this)] = true;
         _isExcludedFromFee[burn()] = true;
-        require(charity() == milkAddress);//*
+        //require(charity() == milkAddress);//*
         
         emit Transfer(address(0), _msgSender(), _tTotal);
     }
@@ -365,7 +349,9 @@ contract Butter is Context, IERC20, Ownable {
         
         //Do the staking redistribtuion here so it can be done every transaction
          //Take a percentage out of the tLiqudity here and distribute;
-        if(stakeholders.length > 1 && !_failSafe)
+
+
+        if(_stakedMilkPool > 0)
         {
             //there are people staking MILK
             uint256 distributionAmount = (tLiquidity.mul(_stakingPoolPercentageOfLiquidity)).div(10**2);
@@ -454,7 +440,7 @@ contract Butter is Context, IERC20, Ownable {
         // tokens that we need to initiate a swap + liquidity lock?
         // also, don't get caught in a circular liquidity event.
         // also, don't swap & liquify if sender is uniswap pair.
-        uint256 contractTokenBalance = balanceOf(address(this)).sub(_totalAccruedButter);
+        uint256 contractTokenBalance = balanceOf(address(this)).sub(_actualAccruedButter);
         
         if(contractTokenBalance >= _maxTxAmount)
         {
@@ -534,7 +520,7 @@ contract Butter is Context, IERC20, Ownable {
         // how much ETH did we just swap into?
         uint256 newBalance = address(this).balance.sub(initialBalance);
         
-        
+        /*
         //Now reserve some of that eth for charity to collect
         uint256 balanceToCharity = (newBalance.mul(charityPercentageOfLiquidity())).div(10**2);
         _ethReservedForCharity = _ethReservedForCharity.add(balanceToCharity);
@@ -542,6 +528,17 @@ contract Butter is Context, IERC20, Ownable {
         uint256 balanceToExpense = (newBalance.mul(_expensePrecentageOfLiquidity)).div(10**2);
         _ethReservedForExpenses = _ethReservedForCharity.add(balanceToExpense);
         uint256 tokensExtraFromExpense = (otherHalf.mul(_expensePrecentageOfLiquidity)).div(10**2);
+        */
+        
+        uint256 balanceReservedCombined = (newBalance.mul(charityPercentageOfLiquidity().add(_expensePrecentageOfLiquidity))).div(10**2);
+        uint256 tokensExtraCombined = (otherHalf.mul(charityPercentageOfLiquidity().add(_expensePrecentageOfLiquidity))).div(10**2);
+        uint256 balanceToCharity = (newBalance.mul(charityPercentageOfLiquidity())).div(10**2);
+        uint256 balanceToExpense = balanceReservedCombined.sub(balanceToCharity);
+        uint256 tokensExtraFromCharity = (otherHalf.mul(charityPercentageOfLiquidity())).div(10**2);
+        uint256 tokensExtraFromExpense = tokensExtraCombined.sub(tokensExtraFromCharity);
+        
+        _ethReservedForCharity = _ethReservedForCharity.add(balanceToCharity);
+        _ethReservedForExpenses = _ethReservedForExpenses.add(balanceToExpense);
         
         //How much eth is left for liquidity?
         newBalance = newBalance.sub(balanceToCharity).sub(balanceToExpense);
@@ -650,6 +647,10 @@ contract Butter is Context, IERC20, Ownable {
     {
         //Make sure the message sender has enought Milk
         require(milk.balanceOf(msg.sender) >= stakeAmount, "Insufficient Milk balance");
+        require(stakeAmount <= _maxLeftToStake(), "Staked milk cannot be >50% of total Milk holdings");
+        
+        //Make sure someone isn't trying to stake more than 50% of their milk
+        //require(milk.balanceOf(msg.sender).add(_stakedMilk[msg.sender]) <= (milk.balanceOf(msg.sender).add(_stakedMilk[msg.sender]).add(stakeAmount)).div(2), "Staked milk cannot be >50% of total milk holdings");
         
         //Find out how much Milk is staked
         uint256 initialMilkBalance = milk.balanceOf(address(this));
@@ -664,34 +665,98 @@ contract Butter is Context, IERC20, Ownable {
         uint256 milkReceived = newMilkBalance.sub(initialMilkBalance);
         
         
+        //Check if the sender already has Milk staked
+        if(_stakedMilk[msg.sender] == 0)
+        {
+            //They have not
+            //Set this as their stake entry point
+            _stakeEntry[msg.sender] = _totalAccruedButter;
+        }
+        else
+        {
+            //They have
+            //Calculate and allocate their rewards from
+            //Their original stake point
+            //Reset stake point
+            uint256 reward = _calculateReward(msg.sender);
+            _accruedButter[msg.sender] = _accruedButter[msg.sender].add(reward);
+            _stakeEntry[msg.sender] = _totalAccruedButter;
+        }
+        
+        
         _stakedMilk[msg.sender] = _stakedMilk[msg.sender].add(milkReceived);
         _stakedMilkPool = _stakedMilkPool.add(milkReceived);
         
+        
         //Ensure that the message sender address is in the butter earnings pool
-        _accruedButter[msg.sender] = _accruedButter[msg.sender];
-        
-        
-        //Add the user as a stakeholder if they are not already
-        (bool _isStakeholder, ) = isStakeholder(msg.sender);
-        if (!_isStakeholder) addStakeholder(msg.sender);
+        //(May not be necessary)
+        //_accruedButter[msg.sender] = _accruedButter[msg.sender];
     }
     
     function _unstakeMilk(uint256 unstakeAmount) public
     {
-        //Make sure that the sender has this amount of milk _stakedMilkPool
+        //Make sure that the sender has this amount of milk 
+        require(unstakeAmount > 0, "Cannot unstake 0 Milk");
         require(_stakedMilk[msg.sender] >= unstakeAmount, "Insufficient staked Milk");
         
-        //Remove the stakeholder if the person has taken out all of their milk
-        if (unstakeAmount == _stakedMilk[msg.sender])
+        //Calculate and allocate their rewards from
+        //Their original stake point
+        //Reset stake point
+        uint256 reward = _calculateReward(msg.sender);
+        if(!_slashWillOccur(msg.sender))
         {
-            removeStakeholder(msg.sender);
+            _accruedButter[msg.sender] = _accruedButter[msg.sender].add(reward);
         }
+        else
+        {
+            //User is trying to abuse the system by having >50% of their Milk staked
+            //Redistribute their rewards from stake entry
+            _distributeSlashedReward(reward);
+            _stakeEntry[msg.sender] = _totalAccruedButter;
+        }
+        _stakeEntry[msg.sender] = _totalAccruedButter;
+        
         
         //Transfer milk back to the sender
+        
+        milk.transfer(msg.sender, unstakeAmount);
         _stakedMilk[msg.sender] = _stakedMilk[msg.sender].sub(unstakeAmount);
         _stakedMilkPool = _stakedMilkPool.sub(unstakeAmount);
-        milk.transfer(msg.sender, unstakeAmount);
+    }
+    
+    function _unstakeAll() public
+    {
+        require(_stakedMilk[msg.sender] > 0, "Message sender has no staked milk");
         
+        uint256 reward = _calculateReward(msg.sender);
+        if(!_slashWillOccur(msg.sender))
+        {
+            _accruedButter[msg.sender] = _accruedButter[msg.sender].add(reward);
+        }
+        else
+        {
+            //User is trying to abuse the system by having >50% of their Milk staked
+            //Redistribute their rewards from stake entry
+            _distributeSlashedReward(reward);
+        }
+        _stakeEntry[msg.sender] = _totalAccruedButter;
+        
+        //Transfer milk back to the sender
+        //Use min here to avoid potential edge case due to rounding somewhere
+        
+        milk.transfer(msg.sender, _stakedMilk[msg.sender]);
+        _stakedMilkPool = _stakedMilkPool.sub(_stakedMilk[msg.sender]);
+        _stakedMilk[msg.sender] = _stakedMilk[msg.sender].sub(_stakedMilk[msg.sender]);
+    }
+    
+    function _emergencyWithdraw() public
+    {
+        //Get the Milk back to the staker as last resort if someting fails
+        //Staker will lose all unclaimed Butter rewards
+        require(_stakedMilk[msg.sender] > 0, "Message sender has no staked milk");
+        milk.transfer(msg.sender, _stakedMilk[msg.sender]);
+        _stakedMilkPool = _stakedMilkPool.sub(_stakedMilk[msg.sender]);
+        _stakedMilk[msg.sender] = _stakedMilk[msg.sender].sub(_stakedMilk[msg.sender]);
     }
 
     //Staking view funcitons
@@ -705,39 +770,148 @@ contract Butter is Context, IERC20, Ownable {
         return _stakedMilkPool;
     }
     
-    
-    //Butter Earning Stuff
-    function _claimButter(uint256 amount) public
+    //return the percentage of the staked pool some number of milk is be with 2 decimals
+    function _percentageOfStakePool(uint256 amount) public view returns (uint256)
     {
-        require(_accruedButter[msg.sender] >= amount, "Insufficient accrued butter");
-        
-        //Use min here to avoid potential edge case due to rounding somewhere
-        transfer(msg.sender, min(amount, _totalAccruedButter));
-        _totalAccruedButter = _totalAccruedButter.sub(min(amount, _totalAccruedButter));
-        _accruedButter[msg.sender] = _accruedButter[msg.sender].sub(min(amount, _totalAccruedButter));
+        if(_stakedMilkPool == 0) return 0;
+        return(amount.mul(10**4).div(_stakedMilkPool));
     }
     
-    function min(uint256 a, uint256 b) internal pure returns (uint256) 
+    //Returns the percentage of the staked pool a new stake would have
+    function _percentageOfStakePoolNewStake(uint256 amount) public view returns (uint256)
     {
-        if(a >= b) return b;
-        else return a;
+        if(_stakedMilkPool == 0) return 0;
+        return((amount.add(_stakedMilk[msg.sender])).mul(10**4).div(_stakedMilkPool.add(amount)));
+    }
+    
+    //return the percentage of the staked pool of an address with 2 decimal places
+    function _percentageOfStakePool(address addy) public view returns (uint256)
+    {
+        return(_percentageOfStakePool(_stakedMilk[addy]));   
+    }
+    
+    function _maxStakeAmount() public view returns (uint256)
+    {
+        return (milk.balanceOf(msg.sender).add(_stakedMilk[msg.sender])).div(2);
+    }
+    
+    function _maxLeftToStake() public view returns (uint256)
+    {
+        if(milk.balanceOf(msg.sender) <= _stakedMilk[msg.sender]) return 0;
+        return _maxStakeAmount().sub(_stakedMilk[msg.sender]);
+    }
+    
+    //Butter Earning Stuff
+    /*function _claimButter(uint256 amount) public
+    {
+        require(_calculateReward(msg.sender) >= amount, "Insufficient accrued butter");
+        
+        //Use min here to avoid potential edge case due to rounding somewhere
+        //Calculate and allocate their rewards from
+        //Their original stake point
+        //Reset stake point
+        uint256 reward = _calculateReward(msg.sender);
+        _accruedButter[msg.sender] = _accruedButter[msg.sender].add(reward);
+        _stakeEntry[msg.sender] = _totalAccruedButter;
+        
+        
+        removeAllFee();
+        this.transfer(msg.sender, amount);
+        restoreAllFee();
+        _actualAccruedButter = _actualAccruedButter.sub(amount);
+        _accruedButter[msg.sender] = _accruedButter[msg.sender].sub(amount);
+    }*/
+    
+    function _claimAllButter() public
+    {
+        require(_currentRewards(msg.sender) > 0, "Insufficient accrued butter");
+        
+        
+        //Calculate and allocate their rewards from
+        //Their original stake point
+        //Reset stake point
+        uint256 reward = _calculateReward(msg.sender);
+        if(!_slashWillOccur(msg.sender))
+        {
+            _accruedButter[msg.sender] = _accruedButter[msg.sender].add(reward);
+        }
+        else
+        {
+            //User is trying to abuse the system by having >50% of their Milk staked
+            //Redistribute their rewards from stake entry
+            _distributeSlashedReward(reward);
+        }
+        _stakeEntry[msg.sender] = _totalAccruedButter;
+        
+        
+        removeAllFee();
+        this.transfer(msg.sender, _accruedButter[msg.sender]);
+        restoreAllFee();
+        _actualAccruedButter = _actualAccruedButter.sub(_accruedButter[msg.sender]);
+        _accruedButter[msg.sender] = _accruedButter[msg.sender].sub(_accruedButter[msg.sender]);
     }
     
     function _distributeButter(uint256 amount) private
     {
-        //Distribute an amount of Butter to all users with staked Milk proportional to their staked
-        uint256 remainingAmount = amount;
-        uint256 stakedAmount;
-        uint256 earnedAmount;
-        for(uint256 i = 0; i < stakeholders.length; i++)
+        if(_stakedMilkPool != 0)
         {
-            stakedAmount = _stakedMilk[stakeholders[i]];
-            earnedAmount = (stakedAmount.mul(amount)).div(_totalStakedMilk());
-            
-            //Use min here to avoid giving the total shareholders more than the amount as the result of integer rounding
-            _accruedButter[stakeholders[i]] = _accruedButter[stakeholders[i]].add(min(earnedAmount, remainingAmount));
-            remainingAmount = remainingAmount.sub(min(earnedAmount, remainingAmount));
-            _totalAccruedButter = _totalAccruedButter.add(min(earnedAmount, remainingAmount));
+            //Multiplying by Milk Magnitude ensures that even if all milk in existence was staked
+            //1 butter would still be > _stakedMilkPool
+            _actualAccruedButter = _actualAccruedButter.add(amount);
+            _totalAccruedButter = _totalAccruedButter.add(amount.mul(milkMagnitude).div(_stakedMilkPool));
         }
+        else
+        {
+            return;
+        }
+    }
+    
+     function _distributeSlashedReward(uint256 amount) private
+    {
+        if(_stakedMilkPool != 0)
+        {
+            //Multiplying by Milk Magnitude ensures that even if all milk in existence was staked
+            //1 butter would still be > _stakedMilkPool
+            _totalAccruedButter = _totalAccruedButter.add(amount.mul(milkMagnitude).div(_stakedMilkPool));
+            //Dont increase actual accrued butter because this amount is being redistributed, not newly collected
+        }
+        else
+        {
+            return;
+        }
+    }
+    
+    function _slashWillOccur(address addy) public view returns (bool)
+    {
+        if (_stakedMilk[addy] > milk.balanceOf(addy)) return true;
+        return false;
+    }
+    
+    function _milkNeededToAvoidSlash(address addy) public view returns (uint256)
+    {
+        //User is compliant
+        if (_stakedMilk[addy] <= milk.balanceOf(addy)) return 0;
+        //User is not compliant
+        return (_stakedMilk[addy].sub(milk.balanceOf(addy)));
+    }
+    
+    function _calculateReward(address addy) public view returns (uint256)
+    {
+        return (_stakedMilk[addy].mul(_totalAccruedButter.sub(_stakeEntry[addy]))).div(milkMagnitude);
+    }
+    
+    function _currentRewards(address addy) public view returns (uint256)
+    {
+        return _accruedButter[msg.sender].add(_calculateReward(addy));
+    }
+    
+    function actualAccruedButter() public view returns (uint256)
+    {
+        return _actualAccruedButter;
+    }
+    
+    function earnedButter(address addy) public view returns (uint256)
+    {
+        return _accruedButter[addy];
     }
 }
