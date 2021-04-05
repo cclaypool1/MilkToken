@@ -155,10 +155,14 @@
 		var s = "0" + afterDecimal;
 		afterDecimal = s.substr(s.length-2);
 		
-
 		
+		var percentOfPoolString = beforeDecimal + "." + afterDecimal;
+		if(percentOfPoolString == "0.00")
+		{
+			percentOfPoolString = "<0.01";
+		}
 		//Do stuff with the balance BN (show balance etc.)
-		document.getElementById("percent").innerText = beforeDecimal + "." + afterDecimal;
+		document.getElementById("percent").innerText = percentOfPoolString;
 	}
 	
 	async function getEarnedButter() {
@@ -341,10 +345,9 @@
 	}
 	
 	var slashWillOccur = false;
-	function checkSlash()
+	async function checkSlash()
 	{
-		if(milkTokenBalance < stakedMilk) slashWillOccur = true;
-		else slashWillOccur = false;
+		slashWillOccur = await butterContract.methods._slashWillOccur().call({from: account});
 	}
 	
 	var incorrectChain = false;
