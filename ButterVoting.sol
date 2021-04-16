@@ -16,7 +16,7 @@ contract ButterVoting is Context, Ownable {
     using Address for address;
     
     
-    address payable butterAddress = 0x0110fF9e7E4028a5337F07841437B92d5bf53762; //testnet butter
+    address payable butterAddress = 0x0110fF9e7E4028a5337F07841437B92d5bf53762;
     
     //Price calc stuff
     address wbnbAddress = 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c;
@@ -59,7 +59,7 @@ contract ButterVoting is Context, Ownable {
     
     constructor () public {
         
-        IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(0x05fF2B0DB69458A0750badebc4f9e13aDd608C7F); //testnet factory
+        IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(0x05fF2B0DB69458A0750badebc4f9e13aDd608C7F);
          // Create a uniswap pair for this new token
 
         // set the rest of the contract variables
