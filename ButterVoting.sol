@@ -16,7 +16,15 @@ contract ButterVoting is Context, Ownable {
     using Address for address;
     
     
-    address payable butterAddress = 0xc71BE573D834755D44B35C1c14C9Cc7906E16d62; //testnet butter
+    address payable butterAddress = 0x0110fF9e7E4028a5337F07841437B92d5bf53762; //testnet butter
+    
+    //Price calc stuff
+    address wbnbAddress = 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c;
+    address busdAddress = 0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56;
+    address pancakeAddress = 0x1B96B92314C44b159149f7E0303511fB2Fc4774f;
+    address butterLPaddress = 0xE1BD982AFea7FbA7A5B875e0a226cc38c7E9A7F2;
+    IERC20 wbnb = IERC20(wbnbAddress);
+    IERC20 busd = IERC20(busdAddress);
     
     
     //Vote tracking (use mapping to avoid having to iterate through arrays)
@@ -28,6 +36,14 @@ contract ButterVoting is Context, Ownable {
     Charity[] charities;
     Charity[] partneredCharities;
     uint256 public _totalCharityCollected;
+    
+    event winnerChosen(
+        string name,
+        string website,
+        string description,
+        string logo,
+        uint256 votes
+    );
     
     string previousWinnerName;
     string previousWinnerWebsite;
@@ -43,7 +59,7 @@ contract ButterVoting is Context, Ownable {
     
     constructor () public {
         
-        IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(0xD99D1c33F9fC3444f8101754aBC46c52416550D1); //testnet factory
+        IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(0x05fF2B0DB69458A0750badebc4f9e13aDd608C7F); //testnet factory
          // Create a uniswap pair for this new token
 
         // set the rest of the contract variables
@@ -164,12 +180,14 @@ contract ButterVoting is Context, Ownable {
         previousWinnerDescription = winner.description;
         previousWinnerLogo = winner.logo;
         previousWinnerVotes = winner.votes;
+        
+        emit winnerChosen(winner.name, winner.website, winner.description, winner.logo, winner.votes);
     }
     
     function updatePrice() public onlyOwner
     {
         //set butter price to 1 BUSD equivalent of Butter at the time this funciton is called
-        //This cannot be done real-time or the price wont be known until a suggestion is made and user cannot know how much butter they must spend
+        butterPrice = getPrice();
     }
     
     //Update functions
@@ -224,9 +242,12 @@ contract ButterVoting is Context, Ownable {
     
     function suggestCharity(string memory name, string memory website, string memory description, string memory logo) public
     {
+        updatePrice(); //Update the price to 1 BUSD equivalent of Butter
+        
         require(butter.balanceOf(msg.sender) >= butterPrice, "You have no Butter to vote with!");
         require(charities.length < maxCharitiesPerPoll, "There are already the maximum number of charities in this poll!");
         require(voteCast[msg.sender][pollNumber] == false, "You have already voted in this poll, you cannot suggest a charity until the next poll");
+        require(polling, "You cannot suggest a charity right now, wait until a poll is active");
         
         //Create a new charity object and cast the subjectors vote
         Charity memory newCharity = Charity(name, website, description, logo, butter.balanceOf(msg.sender), false);
@@ -287,5 +308,26 @@ contract ButterVoting is Context, Ownable {
     function getPreviousWinner() public view returns (string memory, string memory, string memory, string memory, uint256)
     {
         return(previousWinnerName, previousWinnerWebsite, previousWinnerDescription, previousWinnerLogo, previousWinnerVotes);
+    }
+    
+    function getPrice() public view returns (uint256)
+    {
+        //Returns 1 BUSD equivalent of BUTTER
+        uint256 butterBNBamount = wbnb.balanceOf(butterLPaddress);
+        uint256 butterAmount = butter.balanceOf(butterLPaddress);
+        
+        //Find BNB price in BUSD
+        uint256 bnbAmount = wbnb.balanceOf(pancakeAddress);
+        uint256 busdAmount = busd.balanceOf(pancakeAddress);
+        uint256 bnbPrice = busdAmount.div(bnbAmount);
+        
+        //Normalize decimals to BNB/BUSD decimals, find amount of Butter 1 BNB is worth
+        butterAmount = butterAmount.mul(10**9);
+        uint256 butterPerBNB = butterAmount.div(butterBNBamount);
+        
+        //Find amount of Butter 1 BUSD is worth
+        uint256 butterPerBUSD = butterPerBNB.div(bnbPrice);
+        butterPerBUSD = butterPerBUSD.mul(10**9); //add back Butter decimals
+        return butterPerBUSD;
     }
 }
