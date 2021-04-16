@@ -123,7 +123,7 @@ contract ButterVoting is Context, Ownable {
         //Clear charity list
         require(!polling, "Poll already in progress");
         clearCharities();
-        for(uint i = 0; i < partneredCharities.length; i++)
+        for(uint256 i = 0; i < partneredCharities.length; i++)
         {
             charities.push(partneredCharities[i]);
         }
@@ -133,6 +133,12 @@ contract ButterVoting is Context, Ownable {
         
         //enable polling
         polling = true;
+        
+        //Burn any butter from suggestions
+        if(butter.balanceOf(address(this)) > 0)
+        {
+            butter.transfer(burn(), butter.balanceOf(address(this)));
+        }
     }
     
     function endPoll() public onlyOwner
@@ -158,6 +164,12 @@ contract ButterVoting is Context, Ownable {
         previousWinnerDescription = winner.description;
         previousWinnerLogo = winner.logo;
         previousWinnerVotes = winner.votes;
+    }
+    
+    function updatePrice() public onlyOwner
+    {
+        //set butter price to 1 BUSD equivalent of Butter at the time this funciton is called
+        //This cannot be done real-time or the price wont be known until a suggestion is made and user cannot know how much butter they must spend
     }
     
     //Update functions
@@ -204,15 +216,42 @@ contract ButterVoting is Context, Ownable {
     //public functions
     function castVote(uint256 charityIndex) public
     {
+        require(butter.balanceOf(msg.sender) > 0, "You have no Butter to vote with!");
         require(voteCast[msg.sender][pollNumber] == false, "You have already voted in this poll");
         charities[charityIndex].votes = charities[charityIndex].votes.add(butter.balanceOf(msg.sender));
         voteCast[msg.sender][pollNumber] = true;
     }
     
-    //public view functions
-    function getCharity(uint256 index) public view returns(string memory, string memory, string memory, string memory)
+    function suggestCharity(string memory name, string memory website, string memory description, string memory logo) public
     {
-        return(charities[index].name, charities[index].website, charities[index].description, charities[index].logo);
+        require(butter.balanceOf(msg.sender) >= butterPrice, "You have no Butter to vote with!");
+        require(charities.length < maxCharitiesPerPoll, "There are already the maximum number of charities in this poll!");
+        require(voteCast[msg.sender][pollNumber] == false, "You have already voted in this poll, you cannot suggest a charity until the next poll");
+        
+        //Create a new charity object and cast the subjectors vote
+        Charity memory newCharity = Charity(name, website, description, logo, butter.balanceOf(msg.sender), false);
+        
+        //push to charities list
+        charities.push(newCharity);
+        
+        //mark the suggestor as having having voted
+        voteCast[msg.sender][pollNumber] == true;
+        
+        //Take the appropriate amount of Butter from the suggestor
+        uint256 startingButter = butter.balanceOf(address(this));
+        butter.transferFrom(msg.sender, address(this), butterPrice);
+        uint256 transferedButter = butter.balanceOf(address(this)).sub(startingButter);
+        
+        //Save half for burning, sell half for collection by charity wallet
+        uint256 half = transferedButter.div(2);
+        
+        swapTokensForEth(half);
+    }
+    
+    //public view functions
+    function getCharity(uint256 index) public view returns(string memory, string memory, string memory, string memory, uint256, bool)
+    {
+        return(charities[index].name, charities[index].website, charities[index].description, charities[index].logo, charities[index].votes, charities[index].partnered);
     }
     
     function getPartneredCharity(uint256 index) public view returns(string memory, string memory, string memory, string memory)
