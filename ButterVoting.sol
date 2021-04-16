@@ -121,6 +121,7 @@ contract ButterVoting is Context, Ownable {
     function startNewPoll() public onlyOwner
     {
         //Clear charity list
+        require(!polling, "Poll already in progress");
         clearCharities();
         for(uint i = 0; i < partneredCharities.length; i++)
         {
@@ -136,6 +137,7 @@ contract ButterVoting is Context, Ownable {
     
     function endPoll() public onlyOwner
     {
+        require(polling, "No poll running");
         //disable polling
         polling = false;
         
