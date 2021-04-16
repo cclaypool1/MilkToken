@@ -23,9 +23,11 @@ contract ButterVoting is Context, Ownable {
     mapping (address => mapping (uint256 => bool)) private voteCast; //[address][pollNumber] => hasVotedBool
     uint256 pollNumber = 0;
     uint256 maxCharitiesPerPoll = 20;
+    uint256 butterPrice = 1000; //Price for suggestions (1 BUSD worth of Butter, 1000 for testnet purposes)
     bool polling = false;
     Charity[] charities;
     Charity[] partneredCharities;
+    uint256 public _totalCharityCollected;
     
     string previousWinnerName;
     string previousWinnerWebsite;
@@ -70,6 +72,12 @@ contract ButterVoting is Context, Ownable {
     
     //public transact functions
     //owner functions
+    function charityCollectAll() public onlyCharity
+    {
+        _totalCharityCollected = _totalCharityCollected.add(address(this).balance);
+        charity().transfer(address(this).balance);
+    }
+    
     function clearCharities() public onlyOwner
     {
         //Clear out the charity array, pop all elements
@@ -191,6 +199,14 @@ contract ButterVoting is Context, Ownable {
         partneredCharities[index].logo = logo;
     }
     
+    //public functions
+    function castVote(uint256 charityIndex) public
+    {
+        require(voteCast[msg.sender][pollNumber] == false, "You have already voted in this poll");
+        charities[charityIndex].votes = charities[charityIndex].votes.add(butter.balanceOf(msg.sender));
+        voteCast[msg.sender][pollNumber] = true;
+    }
+    
     //public view functions
     function getCharity(uint256 index) public view returns(string memory, string memory, string memory, string memory)
     {
@@ -231,7 +247,4 @@ contract ButterVoting is Context, Ownable {
     {
         return(previousWinnerName, previousWinnerWebsite, previousWinnerDescription, previousWinnerLogo, previousWinnerVotes);
     }
-    
-    
-    
 }
