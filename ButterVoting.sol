@@ -184,7 +184,7 @@ contract ButterVoting is Context, Ownable {
         emit winnerChosen(winner.name, winner.website, winner.description, winner.logo, winner.votes);
     }
     
-    function updatePrice() public onlyOwner
+    function updatePrice() private
     {
         //set butter price to 1 BUSD equivalent of Butter at the time this funciton is called
         butterPrice = getPrice();
