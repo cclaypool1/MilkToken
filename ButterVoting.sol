@@ -29,6 +29,8 @@ contract ButterVoting is Context, Ownable {
     
     //Vote tracking (use mapping to avoid having to iterate through arrays)
     mapping (address => mapping (uint256 => bool)) private voteCast; //[address][pollNumber] => hasVotedBool
+    mapping (address => mapping (uint256 => uint256)) private vote;
+    mapping (address => mapping (uint256 => uint256)) private voteWeight;
     uint256 pollNumber = 0;
     uint256 maxCharitiesPerPoll = 20;
     uint256 butterPrice = 1000; //Price for suggestions (1 BUSD worth of Butter, 1000 for testnet purposes)
@@ -238,6 +240,8 @@ contract ButterVoting is Context, Ownable {
         require(voteCast[msg.sender][pollNumber] == false, "You have already voted in this poll");
         charities[charityIndex].votes = charities[charityIndex].votes.add(butter.balanceOf(msg.sender));
         voteCast[msg.sender][pollNumber] = true;
+        vote[msg.sender][pollNumber] = charityIndex;
+        voteWeight[msg.sender][pollNumber] = butter.balanceOf(msg.sender);
     }
     
     function suggestCharity(string memory name, string memory website, string memory description, string memory logo) public
@@ -257,6 +261,8 @@ contract ButterVoting is Context, Ownable {
         
         //mark the suggestor as having having voted
         voteCast[msg.sender][pollNumber] == true;
+        vote[msg.sender][pollNumber] = charities.length-1;
+        voteWeight[msg.sender][pollNumber] = butter.balanceOf(msg.sender);
         
         //Take the appropriate amount of Butter from the suggestor
         uint256 startingButter = butter.balanceOf(address(this));
@@ -329,5 +335,20 @@ contract ButterVoting is Context, Ownable {
         uint256 butterPerBUSD = butterPerBNB.div(bnbPrice);
         butterPerBUSD = butterPerBUSD.mul(10**9); //add back Butter decimals
         return butterPerBUSD;
+    }
+    
+    function hasVoted() public view returns (bool)
+    {
+        return voteCast[msg.sender][pollNumber];
+    }
+    
+    function addressVote() public view returns (uint256)
+    {
+        return vote[msg.sender][pollNumber];
+    }
+    
+    function addressVoteWeight() public view returns (uint256)
+    {
+        return voteWeight[msg.sender][pollNumber];
     }
 }
