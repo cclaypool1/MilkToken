@@ -1,0 +1,211 @@
+if (window.ethereum) 
+	{
+	
+		web3 = new Web3(window.ethereum);
+	
+		try { 
+		window.ethereum.enable().then(function() 
+		{
+		
+		});
+		} 
+		catch(e) 
+		{
+		// User has denied account access to DApp...
+		}
+	}
+	// Legacy DApp Browsers
+	else if (window.web3) {
+		web3 = new Web3(web3.currentProvider);
+	}
+	else
+	{
+		web3 = new Web3('https://bsc-dataseed1.binance.org:443');
+		//Don't show voting buttons if user isn't connected to web3
+	}
+	//Init stuff
+	const BN = web3.utils.BN;
+	
+	var votingContractAddress = "0x9ED683D61d1F987f35c1f31D128AE13BB63B9a13";
+    var butterContractAddress = "0x0110fF9e7E4028a5337F07841437B92d5bf53762";
+	var votingContract = new web3.eth.Contract(JSON.parse(votingABI), votingContractAddress);
+	var butterContract = new web3.eth.Contract(JSON.parse(butterABI), butterContractAddress);
+	
+	
+	async function startSite()
+	{
+		await populateCharities();
+		var updateInterval = setInterval(function() {
+						updatePage(); 
+				}, 100);
+	}
+	
+	
+	startSite();
+	
+	if(window.ethereum)
+	{
+		//show buttons for voting/suggestions etc.
+		var account = window.ethereum.selectedAddress;
+		if(!window.ethereum.isTrust)
+		{
+			var accountInterval = setInterval(function() {
+				//if (window.ethereum.selectedAddress !== account) {
+					account = window.ethereum.selectedAddress; 
+			// }
+			}, 100);
+		}
+		else
+		{
+			var accountInterval = setInterval(function() {
+				account = window.ethereum.address;
+			}, 100);
+		}
+	}
+	
+	//start interval to check and update votes/sort charities
+	
+	
+	var numberOfCharities;
+	async function getNumberOfCharities() {
+		numberOfCharities = await votingContract.methods.getNumberOfCharities().call();
+	}
+	
+	var charityName;
+	var charityWebsite;
+	var charityDescription;
+	var charityLogo;
+	var charityVotes;
+	var charityPartnerStatus;
+	async function getCharity(index) {
+		var charityInfo = await votingContract.methods.getCharity(index).call();
+		charityName = charityInfo[0];
+		charityWebsite = charityInfo[1];
+		charityDescription = charityInfo[2];
+		charityLogo = charityInfo[3];
+		charityVotes = charityInfo[4];
+		charityPartnerStatus = charityInfo[5];
+	}
+	
+	var totalVotes = BigInt(0);
+	async function calculateTotalVotes() {
+		await getNumberOfCharities();
+		for(i = 0; i < numberOfCharities; i++)
+		{
+			var charityInfo = await votingContract.methods.getCharity(i).call();
+			totalVotes += BigInt(charityInfo[4]);
+		}
+	}
+	
+	async function castVote(index) {
+		votingContract.methods.castVote().send({from: account});
+	}
+	
+	var hasVoted;
+	var vote;
+	var voteWeight;
+	var voteCharityName;
+	async function checkVote()
+	{
+		hasVoted = await votingContract.methods.hasVoted().call({from: account});
+		if(hasVoted)
+		{
+			vote = await votingContract.methods.addressVote().call({from: account});
+			voteWeight = await votingContract.methods.addressVoteWeight().call({from: account});
+			var charityInfo = await votingContract.methods.getCharity(vote).call();
+			voteCharityName = charityInfo[0];
+		}
+	}
+	
+	async function updatePage() {
+		//keep votes updated real-time (and show the vote button if connected and can vote)
+		//or thank the user for their vote
+		await checkVote();
+		for(i = 0; i < numberOfCharities; i++)
+		{
+			var charityElement = document.querySelector('#charity' + i.toString());
+			await getCharity(i);
+			var votesTruncated = BigInt(charityVotes) / BigInt(10**9);
+			charityElement.querySelector('#votecount').innerText = votesTruncated.toLocaleString() + " votes";
+			
+			charityElement.querySelector('#progressbar').setAttribute("style", "width:" + ((parseFloat(charityVotes.toString())/parseFloat(totalVotes.toString()))*100.0).toString() + "%");
+			
+			
+			if(window.ethereum)
+			{
+				//user has connected, show the button
+				if(!hasVoted)
+				{
+					charityElement.querySelector('#votebutton').style.display = "block";
+				}
+				else
+				{
+					charityElement.querySelector('#votebutton').style.display = "none";
+					document.querySelector('#thanksmessage').style.display = "block";
+					document.querySelector('#thanksname').innerText = voteCharityName;
+					var voteWeightTruncated = BigInt(voteWeight) / BigInt(10**9);
+					
+					document.querySelector('#castvotes').innerText = voteWeightTruncated.toLocaleString();
+				}
+				if(numberOfCharities >= 20)
+				{
+					document.querySelector('#suggest').style.display = "none";
+				}
+				else
+				{
+					document.querySelector('#suggest').style.display = "block";
+				}
+			}
+		}
+		sortCharities();
+	}
+	
+	function sortCharities() {
+		var $charityList = $('.charitylist');
+		
+		$charityList.find('.charity').sort(function
+		(a,b) {
+			return +b.dataset.votes - +a.dataset.votes;
+		}).appendTo($charityList);
+	}
+	
+	async function populateCharities()
+	{
+		await calculateTotalVotes();
+		var charityElement = document.querySelector('#charitytemplate');
+		var cloneElement;
+		for(i = 0; i < numberOfCharities; i++)
+		{
+			//get the charity from the list in the contract
+			await getCharity(i);
+			//make it show up on the site
+			cloneElement = charityElement.cloneNode(true);
+			cloneElement.id = 'charity' + i.toString();
+			cloneElement.querySelector('#sitelink').href = charityWebsite;
+			cloneElement.querySelector('#sitelink').innerText = charityName;
+			cloneElement.querySelector('#description').innerText = charityDescription;
+			
+			var votesTruncated = BigInt(charityVotes) / BigInt(10**9);
+			cloneElement.querySelector('#votecount').innerText = votesTruncated.toLocaleString() + " votes";
+			
+			cloneElement.querySelector('#progressbar').setAttribute("style", "width:" + ((parseFloat(charityVotes.toString())/parseFloat(totalVotes.toString()))*100.0).toString() + "%");
+			
+			cloneElement.querySelector('#image').setAttribute("src", charityLogo);
+			
+			
+			//super hacky way of sorting, tee hee
+			cloneElement.setAttribute('data-votes', votesTruncated);
+			
+			if(!charityPartnerStatus)
+			{
+				cloneElement.querySelector('#partnered').style.display = "none";
+			}
+			if(!window.ethereum)
+			{
+				//Disable the button to vote for the charity
+				cloneElement.querySelector('#votebutton').style.display = "none";
+			}
+			charityElement.after(cloneElement);
+		}
+		charityElement.parentNode.removeChild(charityElement);
+	}
