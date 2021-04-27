@@ -31,6 +31,7 @@ contract ButterVoting is Context, Ownable {
     mapping (address => mapping (uint256 => bool)) private voteCast; //[address][pollNumber] => hasVotedBool
     mapping (address => mapping (uint256 => uint256)) private vote;
     mapping (address => mapping (uint256 => uint256)) private voteWeight;
+    mapping (uint256 => Charity) private winners;
     uint256 pollNumber = 0;
     uint256 maxCharitiesPerPoll = 20;
     uint256 butterPrice = 1000; //Price for suggestions (1 BUSD worth of Butter, 1000 for testnet purposes)
@@ -46,12 +47,6 @@ contract ButterVoting is Context, Ownable {
         string logo,
         uint256 votes
     );
-    
-    string previousWinnerName;
-    string previousWinnerWebsite;
-    string previousWinnerDescription;
-    string previousWinnerLogo;
-    uint256 previousWinnerVotes;
     
     Butter butter = Butter(butterAddress);
     
@@ -174,14 +169,11 @@ contract ButterVoting is Context, Ownable {
             if(charities[i].votes > mostVotes)
             {
                 winner = charities[i];
+                mostVotes = charities[i].votes;
             }
         }
         
-        previousWinnerName = winner.name;
-        previousWinnerWebsite = winner.website;
-        previousWinnerDescription = winner.description;
-        previousWinnerLogo = winner.logo;
-        previousWinnerVotes = winner.votes;
+        winners[pollNumber] = winner;
         
         emit winnerChosen(winner.name, winner.website, winner.description, winner.logo, winner.votes);
     }
@@ -244,6 +236,19 @@ contract ButterVoting is Context, Ownable {
         voteWeight[msg.sender][pollNumber] = butter.balanceOf(msg.sender);
     }
     
+    function boostVote() public
+    {
+        require(voteCast[msg.sender][pollNumber] == true, "You have yet to vote in this poll");
+        require(butter.balanceOf(msg.sender) > voteWeight[msg.sender][pollNumber], "You have to have more Butter than your initial vote to boost your vote");
+        
+        
+        //Add the boost amount to their charity
+        uint256 boostAmount = butter.balanceOf(msg.sender) - voteWeight[msg.sender][pollNumber];
+        
+        charities[vote[msg.sender][pollNumber]].votes = charities[vote[msg.sender][pollNumber]].votes.add(boostAmount);
+        voteWeight[msg.sender][pollNumber] = voteWeight[msg.sender][pollNumber].add(boostAmount);
+    }
+    
     function suggestCharity(string memory name, string memory website, string memory description, string memory logo) public
     {
         updatePrice(); //Update the price to 1 BUSD equivalent of Butter
@@ -260,7 +265,7 @@ contract ButterVoting is Context, Ownable {
         charities.push(newCharity);
         
         //mark the suggestor as having having voted
-        voteCast[msg.sender][pollNumber] == true;
+        voteCast[msg.sender][pollNumber] = true;
         vote[msg.sender][pollNumber] = charities.length-1;
         voteWeight[msg.sender][pollNumber] = butter.balanceOf(msg.sender);
         
@@ -311,9 +316,10 @@ contract ButterVoting is Context, Ownable {
         return pollNumber;
     }
     
-    function getPreviousWinner() public view returns (string memory, string memory, string memory, string memory, uint256)
+    function getPreviousWinner(uint256 poll) public view returns (string memory, string memory, string memory, string memory, uint256)
     {
-        return(previousWinnerName, previousWinnerWebsite, previousWinnerDescription, previousWinnerLogo, previousWinnerVotes);
+        Charity memory prevWinner = winners[poll];
+        return(prevWinner.name, prevWinner.website, prevWinner.description, prevWinner.logo, prevWinner.votes);
     }
     
     function getPrice() public view returns (uint256)
