@@ -32,6 +32,7 @@ contract ButterVoting is Context, Ownable {
     mapping (address => mapping (uint256 => uint256)) private vote;
     mapping (address => mapping (uint256 => uint256)) private voteWeight;
     mapping (uint256 => Charity) private winners;
+    mapping (uint256 => uint256) private voterCount;
     uint256 pollNumber = 0;
     uint256 maxCharitiesPerPoll = 20;
     uint256 butterPrice = 1000; //Price for suggestions (1 BUSD worth of Butter, 1000 for testnet purposes)
@@ -234,6 +235,7 @@ contract ButterVoting is Context, Ownable {
         voteCast[msg.sender][pollNumber] = true;
         vote[msg.sender][pollNumber] = charityIndex;
         voteWeight[msg.sender][pollNumber] = butter.balanceOf(msg.sender);
+        voterCount[pollNumber] = voterCount[pollNumber].add(1);
     }
     
     function boostVote() public
@@ -346,6 +348,16 @@ contract ButterVoting is Context, Ownable {
     function hasVoted() public view returns (bool)
     {
         return voteCast[msg.sender][pollNumber];
+    }
+    
+    function canBoost() public view returns (bool)
+    {
+        if(hasVoted())
+        {
+            if(butter.balanceOf(msg.sender) > voteWeight[msg.sender][pollNumber]) return true;
+            return false;
+        }
+        return false;
     }
     
     function addressVote() public view returns (uint256)
