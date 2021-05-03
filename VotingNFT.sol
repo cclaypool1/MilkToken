@@ -473,6 +473,9 @@ contract ButterVotingNFT is Context, ERC165, IERC721, IERC721Metadata {
     //Voting NFT info
     mapping (uint256 => string) private tokenCharity;
     mapping (uint256 => uint256) private tokenPollNumber;
+    mapping (uint256 => uint256) private tokenTimestamp;
+    
+    mapping (address => bool) private claimedForPoll;
 
     /**
      * @dev Initializes the contract by setting a `name` and a `symbol` to the token collection.
@@ -818,7 +821,23 @@ contract ButterVotingNFT is Context, ERC165, IERC721, IERC721Metadata {
     
     function claimToken() public
     {
+        require(votingContract.hasVoted(), "You must vote to claim a vote NFT");
+        require(!claimedForPoll[msg.sender], "You have already claimed your vote NFT for this poll");
+        
         _safeMint(msg.sender, id);
+        
+        claimedForPoll[msg.sender] = true;
+        
+        //set poll no and timestamp
+        tokenPollNumber[id] = votingContract.getPollNumber();
+        tokenTimestamp[id] = block.timestamp;
+        
+        //set charity
+        uint256 charityId = votingContract.addressVote();
+        (string memory charity,,,,,) = votingContract.getCharity(charityId);
+        tokenCharity[id] = charity;
+        
+        
         id = id + 1;
     }
 }
