@@ -837,7 +837,22 @@ contract ButterVotingNFT is Context, ERC165, IERC721, IERC721Metadata {
         (string memory charity,,,,,) = votingContract.getCharity(charityId);
         tokenCharity[id] = charity;
         
-        
+        //increment ID
         id = id + 1;
+    }
+    
+    function _tokenCharity(uint256 tokenId) public view returns (string memory)
+    {
+        return tokenCharity[tokenId];
+    }
+    
+    function _tokenTimestamp(uint256 tokenId) public view returns (uint256)
+    {
+        return tokenTimestamp[tokenId];
+    }
+    
+    function _tokenPollNumber(uint256 tokenId) public view returns (uint256)
+    {
+        return tokenPollNumber[tokenId];
     }
 }
