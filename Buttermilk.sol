@@ -3,11 +3,13 @@
 */
 
 /*
-   #MILK features:
-   2% fee auto add to the liquidity pool to locked forever when selling
-   2% fee auto add to charity wallet for food-based charities
+   #BUTTERMILK features:
    2% fee auto distribute to all holders
-   20% Supply is burned at start.
+   1% to Dev expenses (seeding exchanges, marketing, etc...)
+   5% to charity wallet
+   2% to liquidity
+   
+   10% fees total
    
 
  */
