@@ -11,7 +11,15 @@ struct Charity {
     bool partnered;
 }
 
-contract ButterVoting is Context, Ownable {
+interface IButterVoting
+{
+    function hasVotedAddress(address) external view returns (bool);
+    function addressVoteAddress(address) external view returns (uint256);
+    function getCharity(uint256 index) external view returns(string memory, string memory, string memory, string memory, uint256, bool);
+    function getPollNumber() external view returns (uint256);
+}
+
+contract ButterVoting is Context, Ownable, IButterVoting {
     using SafeMath for uint256;
     using Address for address;
     
@@ -283,7 +291,7 @@ contract ButterVoting is Context, Ownable {
     }
     
     //public view functions
-    function getCharity(uint256 index) public view returns(string memory, string memory, string memory, string memory, uint256, bool)
+    function getCharity(uint256 index) public view override returns(string memory, string memory, string memory, string memory, uint256, bool)
     {
         return(charities[index].name, charities[index].website, charities[index].description, charities[index].logo, charities[index].votes, charities[index].partnered);
     }
@@ -313,7 +321,7 @@ contract ButterVoting is Context, Ownable {
         return polling;
     }
     
-    function getPollNumber() public view returns (uint256)
+    function getPollNumber() public view override returns (uint256)
     {
         return pollNumber;
     }
@@ -350,6 +358,11 @@ contract ButterVoting is Context, Ownable {
         return voteCast[msg.sender][pollNumber];
     }
     
+    function hasVotedAddress(address voter) public view override returns (bool)
+    {
+        return voteCast[voter][pollNumber];
+    }
+    
     function canBoost() public view returns (bool)
     {
         if(hasVoted())
@@ -365,8 +378,18 @@ contract ButterVoting is Context, Ownable {
         return vote[msg.sender][pollNumber];
     }
     
+    function addressVoteAddress(address voter) public view override returns (uint256)
+    {
+        return vote[voter][pollNumber];
+    }
+    
     function addressVoteWeight() public view returns (uint256)
     {
         return voteWeight[msg.sender][pollNumber];
+    }
+    
+    function getNumberOfVoters(uint256 poll) public view returns (uint256)
+    {
+        return voterCount[poll];
     }
 }
