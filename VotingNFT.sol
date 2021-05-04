@@ -1,4 +1,4 @@
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.4;
 // SPDX-License-Identifier: Unlicensed
 
 
@@ -435,9 +435,8 @@ interface IERC721Metadata is IERC721 {
 
 interface IButterVoting
 {
-    function hasVoted() external view returns (bool);
-    function addressVote() external view returns (uint256);
-    function addressVoteWeight() external view returns (uint256);
+    function hasVotedAddress(address) external view returns (bool);
+    function addressVoteAddress(address) external view returns (uint256);
     function getCharity(uint256 index) external view returns(string memory, string memory, string memory, string memory, uint256, bool);
     function getPollNumber() external view returns (uint256);
 }
@@ -467,7 +466,7 @@ contract ButterVotingNFT is Context, ERC165, IERC721, IERC721Metadata {
     //current tokenId
     uint256 id = 0;
     
-    address votingContractAddress;
+    address votingContractAddress = 0x9ADdeBc6a2019df2f1Eb9E2215669CeD4B3C18f7;
     IButterVoting votingContract = IButterVoting(votingContractAddress);
     
     //Voting NFT info
@@ -537,9 +536,7 @@ contract ButterVotingNFT is Context, ERC165, IERC721, IERC721Metadata {
         require(_exists(tokenId), "ERC721Metadata: URI query for nonexistent token");
 
         string memory baseURI = _baseURI();
-        return bytes(baseURI).length > 0
-            ? string(abi.encodePacked(baseURI, tokenId.toString()))
-            : '';
+        return baseURI;
     }
 
     /**
@@ -547,7 +544,7 @@ contract ButterVotingNFT is Context, ERC165, IERC721, IERC721Metadata {
      * in child contracts.
      */
     function _baseURI() internal view virtual returns (string memory) {
-        return "";
+        return "https://www.milktoken.net/assets/json/vote.json";
     }
 
     /**
@@ -821,7 +818,7 @@ contract ButterVotingNFT is Context, ERC165, IERC721, IERC721Metadata {
     
     function claimToken() public
     {
-        require(votingContract.hasVoted(), "You must vote to claim a vote NFT");
+        require(votingContract.hasVotedAddress(msg.sender), "You must vote to claim a vote NFT");
         require(!claimedForPoll[msg.sender], "You have already claimed your vote NFT for this poll");
         
         _safeMint(msg.sender, id);
@@ -833,7 +830,7 @@ contract ButterVotingNFT is Context, ERC165, IERC721, IERC721Metadata {
         tokenTimestamp[id] = block.timestamp;
         
         //set charity
-        uint256 charityId = votingContract.addressVote();
+        uint256 charityId = votingContract.addressVoteAddress(msg.sender);
         (string memory charity,,,,,) = votingContract.getCharity(charityId);
         tokenCharity[id] = charity;
         
@@ -854,5 +851,10 @@ contract ButterVotingNFT is Context, ERC165, IERC721, IERC721Metadata {
     function _tokenPollNumber(uint256 tokenId) public view returns (uint256)
     {
         return tokenPollNumber[tokenId];
+    }
+    
+    function claimed() public view returns (bool)
+    {
+        return claimedForPoll[msg.sender];
     }
 }
