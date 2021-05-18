@@ -439,6 +439,7 @@ interface IButterVoting
     function addressVoteAddress(address) external view returns (uint256);
     function getCharity(uint256 index) external view returns(string memory, string memory, string memory, string memory, uint256, bool);
     function getPollNumber() external view returns (uint256);
+    function addressVoteWeightAddress(address addy) external view returns (uint256);
 }
 
 contract ButterVotingNFT is Context, ERC165, IERC721, IERC721Metadata {
@@ -446,10 +447,10 @@ contract ButterVotingNFT is Context, ERC165, IERC721, IERC721Metadata {
     using Strings for uint256;
 
     // Token name
-    string private _name = "Butter Voting NFT";
+    string private _name = "Butter Voting NFT Main Series";
 
     // Token symbol
-    string private _symbol = "BVOTE";
+    string private _symbol = "BVOTE2";
 
     // Mapping from token ID to owner address
     mapping (uint256 => address) private _owners;
@@ -473,8 +474,45 @@ contract ButterVotingNFT is Context, ERC165, IERC721, IERC721Metadata {
     mapping (uint256 => string) private tokenCharity;
     mapping (uint256 => uint256) private tokenPollNumber;
     mapping (uint256 => uint256) private tokenTimestamp;
+    mapping (uint256 => uint256) private tier;
     
-    mapping (address => bool) private claimedForPoll;
+    uint256 tier1cuttoff = 100000000 * 10**9;
+    uint256 tier2cuttoff = 1000000000 * 10**9;
+    string private series = "0";
+    mapping (uint256 => string) private nftSeries;
+    
+    address private _owner;
+    function contractOwner() public view returns (address) {
+        return _owner;
+    }
+    /**
+     * @dev Throws if called by any account other than the owner.
+     */
+    modifier onlyOwner() {
+        require(_owner == _msgSender(), "Ownable: caller is not the owner");
+        _;
+    }
+
+    function renounceOwnership() public virtual onlyOwner {
+        _owner = address(0);
+    }
+    
+    function setTier1(uint256 cuttoff) public onlyOwner
+    {
+        tier1cuttoff = cuttoff;
+    }
+    
+    function setTier2(uint256 cuttoff) public onlyOwner
+    {
+        tier2cuttoff = cuttoff;
+    }
+    
+    function setSeries(string memory sNum) public onlyOwner
+    {
+        series = sNum;
+    }
+    
+    mapping (address => mapping (uint256 => bool)) private claimedForPoll;
 
     /**
      * @dev Initializes the contract by setting a `name` and a `symbol` to the token collection.
@@ -482,6 +520,7 @@ contract ButterVotingNFT is Context, ERC165, IERC721, IERC721Metadata {
     constructor (string memory name_, string memory symbol_) {
         _name = name_;
         _symbol = symbol_;
+        _owner = msg.sender;
     }
 
     /**
@@ -534,8 +573,20 @@ contract ButterVotingNFT is Context, ERC165, IERC721, IERC721Metadata {
      */
     function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
         require(_exists(tokenId), "ERC721Metadata: URI query for nonexistent token");
-
+        
         string memory baseURI = _baseURI();
+        if(tier[tokenId] == 0)
+        {
+            baseURI = string(abi.encodePacked("https://www.milktoken.net/assets/json/vote", nftSeries[tokenId], "t0.json"));
+        }
+        if(tier[tokenId] == 1)
+        {
+            baseURI = string(abi.encodePacked("https://www.milktoken.net/assets/json/vote", nftSeries[tokenId], "t1.json"));
+        }
+        if(tier[tokenId] == 2)
+        {
+            baseURI = string(abi.encodePacked("https://www.milktoken.net/assets/json/vote", nftSeries[tokenId], "t2.json"));
+        }
         return baseURI;
     }
 
@@ -819,11 +870,11 @@ contract ButterVotingNFT is Context, ERC165, IERC721, IERC721Metadata {
     function claimToken() public
     {
         require(votingContract.hasVotedAddress(msg.sender), "You must vote to claim a vote NFT");
-        require(!claimedForPoll[msg.sender], "You have already claimed your vote NFT for this poll");
+        require(!claimedForPoll[msg.sender][votingContract.getPollNumber()], "You have already claimed your vote NFT for this poll");
         
         _safeMint(msg.sender, id);
         
-        claimedForPoll[msg.sender] = true;
+        claimedForPoll[msg.sender][votingContract.getPollNumber()] = true;
         
         //set poll no and timestamp
         tokenPollNumber[id] = votingContract.getPollNumber();
@@ -833,6 +884,17 @@ contract ButterVotingNFT is Context, ERC165, IERC721, IERC721Metadata {
         uint256 charityId = votingContract.addressVoteAddress(msg.sender);
         (string memory charity,,,,,) = votingContract.getCharity(charityId);
         tokenCharity[id] = charity;
+        nftSeries[id] = series;
+        
+        uint256 voteWeight = votingContract.addressVoteWeightAddress(msg.sender);
+        if(voteWeight > tier1cuttoff)
+        {
+            tier[id] = 1;
+        }
+        if(voteWeight > tier2cuttoff)
+        {
+            tier[id] = 2;
+        }
         
         //increment ID
         id = id + 1;
@@ -855,6 +917,12 @@ contract ButterVotingNFT is Context, ERC165, IERC721, IERC721Metadata {
     
     function claimed() public view returns (bool)
     {
-        return claimedForPoll[msg.sender];
+        return claimedForPoll[msg.sender][votingContract.getPollNumber()];
+    }
+    
+    function setVotingContract(address voteAddress) public onlyOwner
+    {
+        votingContractAddress = voteAddress;
+        votingContract = IButterVoting(votingContractAddress);
     }
 }
