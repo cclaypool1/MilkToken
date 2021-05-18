@@ -16,7 +16,9 @@ interface IButterVoting
     function hasVotedAddress(address) external view returns (bool);
     function addressVoteAddress(address) external view returns (uint256);
     function getCharity(uint256 index) external view returns(string memory, string memory, string memory, string memory, uint256, bool);
+    function addressVoteWeightAddress(address addy) external view returns (uint256);
     function getPollNumber() external view returns (uint256);
+    
 }
 
 contract ButterVoting is Context, Ownable, IButterVoting {
@@ -197,6 +199,11 @@ contract ButterVoting is Context, Ownable, IButterVoting {
     function updateCharityName(uint256 index, string memory name) public onlyOwner
     {
         charities[index].name = name;
+    }
+    
+    function updateCharitypartneredStatus(uint256 index, bool status) public onlyOwner
+    {
+        charities[index].partnered = status;
     }
     
     function updateCharityWebsite(uint256 index, string memory website) public onlyOwner
@@ -386,6 +393,11 @@ contract ButterVoting is Context, Ownable, IButterVoting {
     function addressVoteWeight() public view returns (uint256)
     {
         return voteWeight[msg.sender][pollNumber];
+    }
+    
+    function addressVoteWeightAddress(address addy) public view override returns (uint256)
+    {
+        return voteWeight[addy][pollNumber];
     }
     
     function getNumberOfVoters(uint256 poll) public view returns (uint256)
