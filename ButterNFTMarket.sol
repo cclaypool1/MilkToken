@@ -1082,7 +1082,6 @@ contract ButterNFTMarket is Context {
         emit SaleCreated(salesCount);
         
         salesCount = salesCount.add(1);
-        
     }
     
     function endSale(uint256 index) public
