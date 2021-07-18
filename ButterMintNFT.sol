@@ -855,15 +855,17 @@ interface IUniswapV2Router02 is IUniswapV2Router01 {
     ) external;
 }
 
-contract ButterVotingNFT is Context, ERC165, IERC721, IERC721Metadata {
+contract ButterMintNFT is Context, ERC165, IERC721, IERC721Metadata {
     using Address for address;
     using SafeMath for uint256;
+    
+    receive() external payable {}
 
     // Token name
-    string private _name = "Butter Voting NFT Main Series";
+    string private _name = "Butter Mint NFT";
 
     // Token symbol
-    string private _symbol = "BVOTE2TEST";
+    string private _symbol = "BMINT";
 
     // Mapping from token ID to owner address
     mapping (uint256 => address) private _owners;
@@ -885,6 +887,8 @@ contract ButterVotingNFT is Context, ERC165, IERC721, IERC721Metadata {
     uint256 id = 0;
     
     uint256 mintPrice = 10000000000000000;
+    
+    bool allowMinting = false;
     
     //swapping stuff;
     address milkAddress = 0xb7CEF49d89321e22dd3F51a212d58398Ad542640;
@@ -997,27 +1001,20 @@ contract ButterVotingNFT is Context, ERC165, IERC721, IERC721Metadata {
      */
     function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
         require(_exists(tokenId), "ERC721Metadata: URI query for nonexistent token");
-        
-        string memory baseURI = _baseURI();
 
-        baseURI = string(abi.encodePacked("https://www.milktoken.net/assets/json/vote", "t0.json"));
-
-        return baseURI;
+        return URIs[tokenId];
     }
 
     /**
      * @dev Base URI for computing {tokenURI}. Empty by default, can be overriden
      * in child contracts.
      */
-    function _baseURI() internal view virtual returns (string memory) {
-        return "https://www.milktoken.net/assets/json/vote.json";
-    }
 
     /**
      * @dev See {IERC721-approve}.
      */
     function approve(address to, uint256 tokenId) public virtual override {
-        address owner = ButterVotingNFT.ownerOf(tokenId);
+        address owner = ButterMintNFT.ownerOf(tokenId);
         require(to != owner, "ERC721: approval to current owner");
 
         require(_msgSender() == owner || isApprovedForAll(owner, _msgSender()),
@@ -1122,7 +1119,7 @@ contract ButterVotingNFT is Context, ERC165, IERC721, IERC721Metadata {
      */
     function _isApprovedOrOwner(address spender, uint256 tokenId) internal view virtual returns (bool) {
         require(_exists(tokenId), "ERC721: operator query for nonexistent token");
-        address owner = ButterVotingNFT.ownerOf(tokenId);
+        address owner = ButterMintNFT.ownerOf(tokenId);
         return (spender == owner || getApproved(tokenId) == spender || isApprovedForAll(owner, spender));
     }
 
@@ -1184,7 +1181,7 @@ contract ButterVotingNFT is Context, ERC165, IERC721, IERC721Metadata {
      * Emits a {Transfer} event.
      */
     function _burn(uint256 tokenId) internal virtual {
-        address owner = ButterVotingNFT.ownerOf(tokenId);
+        address owner = ButterMintNFT.ownerOf(tokenId);
 
         _beforeTokenTransfer(owner, address(0), tokenId);
 
@@ -1209,7 +1206,7 @@ contract ButterVotingNFT is Context, ERC165, IERC721, IERC721Metadata {
      * Emits a {Transfer} event.
      */
     function _transfer(address from, address to, uint256 tokenId) internal virtual {
-        require(ButterVotingNFT.ownerOf(tokenId) == from, "ERC721: transfer of token that is not own");
+        require(ButterMintNFT.ownerOf(tokenId) == from, "ERC721: transfer of token that is not own");
         require(to != address(0), "ERC721: transfer to the zero address");
 
         _beforeTokenTransfer(from, to, tokenId);
@@ -1231,7 +1228,7 @@ contract ButterVotingNFT is Context, ERC165, IERC721, IERC721Metadata {
      */
     function _approve(address to, uint256 tokenId) internal virtual {
         _tokenApprovals[tokenId] = to;
-        emit Approval(ButterVotingNFT.ownerOf(tokenId), to, tokenId);
+        emit Approval(ButterMintNFT.ownerOf(tokenId), to, tokenId);
     }
 
     /**
@@ -1286,7 +1283,8 @@ contract ButterVotingNFT is Context, ERC165, IERC721, IERC721Metadata {
     {
         if(msg.sender != _owner)
         {
-            require(msg.value >= mintPrice, "Insuffienct BNB value");
+            require(msg.value >= mintPrice, "Insufficient BNB value");
+            require(allowMinting == true);
         }
         
         uint256 paidBNB = msg.value;
@@ -1317,32 +1315,32 @@ contract ButterVotingNFT is Context, ERC165, IERC721, IERC721Metadata {
             block.timestamp
             );
             
-            collectedButter = butter.balanceOf(address(this));
+            collectedButter = butter.balanceOf(address(this)).sub(collectedButter);
             
             //Then Milk
             //swap BNB for Milk
             uint256 collectedMilk = milk.balanceOf(address(this));
         
              // make the swap
-            path = new address[](2);
-            path[0] = uniswapV2Router.WETH();
-            path[1] = milkAddress;
+            address[] memory path2 = new address[](2);
+            path2[0] = uniswapV2Router.WETH();
+            path2[1] = milkAddress;
 
             uniswapV2Router.swapExactETHForTokensSupportingFeeOnTransferTokens{value:milkQuarter}(
             0, // accept any amount of Butter
-            path,
+            path2,
             address(this),
             block.timestamp
             );
             
-            collectedMilk = milk.balanceOf(address(this));
+            collectedMilk = milk.balanceOf(address(this)).sub(collectedMilk);
             
             //now add the liquidity for Milk and Butter and burn
             milk.approve(address(uniswapV2Router), collectedMilk);
 
             // add the liquidity
             uniswapV2Router.addLiquidityETH{value: milkLPQuarter}(
-            address(this),
+            milkAddress,
             collectedMilk,
             0, // slippage is unavoidable
             0, // slippage is unavoidable
@@ -1355,13 +1353,14 @@ contract ButterVotingNFT is Context, ERC165, IERC721, IERC721Metadata {
 
             // add the liquidity
             uniswapV2Router.addLiquidityETH{value: butterLPQuarter}(
-            address(this),
+            butterAddress,
             collectedButter,
             0, // slippage is unavoidable
             0, // slippage is unavoidable
             burnAddress,
             block.timestamp
             );
+            
         }
         
         _safeMint(msg.sender, id);
@@ -1375,6 +1374,16 @@ contract ButterVotingNFT is Context, ERC165, IERC721, IERC721Metadata {
     function collectStrayBNB() public onlyExpense
     {
         expense().transfer(address(this).balance);
+    }
+    
+    function setAllowMinting(bool toggle) public onlyOwner
+    {
+        allowMinting = toggle;
+    }
+    
+    function getAllowMinting() public view returns (bool)
+    {
+        return allowMinting;
     }
     
     constructor (string memory name_, string memory symbol_) {
