@@ -1103,8 +1103,8 @@ contract Milk is Context, IERC20, Ownable {
         
         
         //Now reserve some of that eth for charity to collect
-        uint256 balanceToCharity = newBalance.mul(charityPercentageOfLiquidity().div(10**2));
-        uint256 tokensExtra = otherHalf.mul(charityPercentageOfLiquidity().div(10**2));
+        uint256 balanceToCharity = newBalance.mul(charityPercentageOfLiquidity()).div(10**2);
+        uint256 tokensExtra = otherHalf.mul(charityPercentageOfLiquidity()).div(10**2);
         
         //How much eth is left for liquidity?
         newBalance = newBalance.sub(balanceToCharity);
