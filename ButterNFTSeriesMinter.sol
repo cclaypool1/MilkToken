@@ -1097,6 +1097,11 @@ contract ButterMintNFTSeries is Context, ERC165, IERC721, IERC721Metadata {
         return creator;
     }
     
+    function getSellingActive() public view returns (bool)
+    {
+        return sellingActive;
+    }
+    
     mapping (address => mapping (uint256 => bool)) private claimedForPoll;
 
     /**
