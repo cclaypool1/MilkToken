@@ -855,7 +855,7 @@ interface IUniswapV2Router02 is IUniswapV2Router01 {
     ) external;
 }
 
-contract CollectionMinter is Context
+contract SeriesMinter is Context
 {
     using Address for address;
     using SafeMath for uint256;
@@ -909,17 +909,22 @@ contract CollectionMinter is Context
     IUniswapV2Router02 public immutable uniswapV2Router;
     
     //collection tracking
-    mapping (uint256 => address) private collections;
-    uint256 collectionCount = 0;
+    mapping (uint256 => address) private series;
+    uint256 seriesCount = 0;
     
-    function getCollectionAddress(uint256 index) public view returns (address)
+    function getSeriesAddress(uint256 index) public view returns (address)
     {
-        return collections[index];
+        return series[index];
     }
     
-    function getCollectionCount() public view returns (uint256)
+    function getSeriesCount() public view returns (uint256)
     {
-        return collectionCount;
+        return seriesCount;
+    }
+    
+    function getCreationPrice() public view returns (uint256)
+    {
+        return creationPrice;
     }
     
     
@@ -1008,12 +1013,12 @@ contract CollectionMinter is Context
         
         
         //create new collection
-        ButterMintNFTCollection newCollection = new ButterMintNFTCollection(tokenname, tokensymbol, tokenuri, msg.sender, price, max);
-        collections[collectionCount] = address(newCollection);
+        ButterMintNFTSeries newSeries = new ButterMintNFTSeries(tokenname, tokensymbol, tokenuri, msg.sender, price, max);
+        series[seriesCount] = address(newSeries);
         
         
         //increment collectionCount
-        collectionCount = collectionCount + 1;
+        seriesCount = seriesCount + 1;
     }
     
     function collectStrayBNB() public onlyExpense
@@ -1029,7 +1034,7 @@ contract CollectionMinter is Context
     
 }
 
-contract ButterMintNFTCollection is Context, ERC165, IERC721, IERC721Metadata {
+contract ButterMintNFTSeries is Context, ERC165, IERC721, IERC721Metadata {
     using Address for address;
     using SafeMath for uint256;
     
@@ -1079,8 +1084,6 @@ contract ButterMintNFTCollection is Context, ERC165, IERC721, IERC721Metadata {
     IERC20 milk = IERC20(milkAddress);
     IERC20 butter = IERC20(butterAddress);
     
-    address payable private _expenseWallet = payable(0xbd05D7670611fd82ac0dB90BF48A5f01cF3B496F);
-    
     IUniswapV2Router02 public immutable uniswapV2Router;
 
     
@@ -1089,9 +1092,9 @@ contract ButterMintNFTCollection is Context, ERC165, IERC721, IERC721Metadata {
         return purchasePrice;
     }
     
-    function expense() public view returns(address payable)
+    function getCreator() public view returns(address)
     {
-        return _expenseWallet;
+        return creator;
     }
     
     mapping (address => mapping (uint256 => bool)) private claimedForPoll;
@@ -1154,6 +1157,16 @@ contract ButterMintNFTCollection is Context, ERC165, IERC721, IERC721Metadata {
 
         return URI;
     }
+    
+    function getURI() public view returns (string memory)
+    {
+        return URI;
+    }
+    
+    function getMaxSupply() public view returns(uint256)
+    {
+        return maxID;
+    }
 
     /**
      * @dev Base URI for computing {tokenURI}. Empty by default, can be overriden
@@ -1164,7 +1177,7 @@ contract ButterMintNFTCollection is Context, ERC165, IERC721, IERC721Metadata {
      * @dev See {IERC721-approve}.
      */
     function approve(address to, uint256 tokenId) public virtual override {
-        address owner = ButterMintNFTCollection.ownerOf(tokenId);
+        address owner = ButterMintNFTSeries.ownerOf(tokenId);
         require(to != owner, "ERC721: approval to current owner");
 
         require(_msgSender() == owner || isApprovedForAll(owner, _msgSender()),
@@ -1269,7 +1282,7 @@ contract ButterMintNFTCollection is Context, ERC165, IERC721, IERC721Metadata {
      */
     function _isApprovedOrOwner(address spender, uint256 tokenId) internal view virtual returns (bool) {
         require(_exists(tokenId), "ERC721: operator query for nonexistent token");
-        address owner = ButterMintNFTCollection.ownerOf(tokenId);
+        address owner = ButterMintNFTSeries.ownerOf(tokenId);
         return (spender == owner || getApproved(tokenId) == spender || isApprovedForAll(owner, spender));
     }
 
@@ -1331,7 +1344,7 @@ contract ButterMintNFTCollection is Context, ERC165, IERC721, IERC721Metadata {
      * Emits a {Transfer} event.
      */
     function _burn(uint256 tokenId) internal virtual {
-        address owner = ButterMintNFTCollection.ownerOf(tokenId);
+        address owner = ButterMintNFTSeries.ownerOf(tokenId);
 
         _beforeTokenTransfer(owner, address(0), tokenId);
 
@@ -1356,7 +1369,7 @@ contract ButterMintNFTCollection is Context, ERC165, IERC721, IERC721Metadata {
      * Emits a {Transfer} event.
      */
     function _transfer(address from, address to, uint256 tokenId) internal virtual {
-        require(ButterMintNFTCollection.ownerOf(tokenId) == from, "ERC721: transfer of token that is not own");
+        require(ButterMintNFTSeries.ownerOf(tokenId) == from, "ERC721: transfer of token that is not own");
         require(to != address(0), "ERC721: transfer to the zero address");
 
         _beforeTokenTransfer(from, to, tokenId);
@@ -1378,7 +1391,7 @@ contract ButterMintNFTCollection is Context, ERC165, IERC721, IERC721Metadata {
      */
     function _approve(address to, uint256 tokenId) internal virtual {
         _tokenApprovals[tokenId] = to;
-        emit Approval(ButterMintNFTCollection.ownerOf(tokenId), to, tokenId);
+        emit Approval(ButterMintNFTSeries.ownerOf(tokenId), to, tokenId);
     }
 
     /**
@@ -1434,13 +1447,10 @@ contract ButterMintNFTCollection is Context, ERC165, IERC721, IERC721Metadata {
     
      //Tokens stuff
     address wbnbAddress = 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c;
-    address busdAddress = 0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56;
     
 
     
     IERC20 wbnb = IERC20(wbnbAddress);
-    IERC20 busd = IERC20(busdAddress);
-
     
     
     function getButterPerBNB() public view returns (uint256)
@@ -1466,16 +1476,6 @@ contract ButterMintNFTCollection is Context, ERC165, IERC721, IERC721Metadata {
         uint256 milkPerBNB = milkAmount.div(milkBNBamount);
         
         return milkPerBNB.mul(10**9);
-    }
-    
-    function getBNBPrice() public view returns (uint256)
-    {
-        //Find BNB price in BUSD
-        uint256 bnbAmount = wbnb.balanceOf(pancakeAddress);
-        uint256 busdAmount = busd.balanceOf(pancakeAddress);
-        uint256 bnbPrice = busdAmount.div(bnbAmount);
-        
-        return bnbPrice;
     }
     
     
@@ -1505,7 +1505,7 @@ contract ButterMintNFTCollection is Context, ERC165, IERC721, IERC721Metadata {
     
     function buyWithButter() public
     {
-        require(id <= maxID, "This collection has been sold out");
+        require(id <= maxID, "This series has been sold out");
         require(sellingActive, "This sale is not running");
 
         require(butter.balanceOf(msg.sender) >= salePriceButter(purchasePrice), "You do not have sufficient butter");
@@ -1525,7 +1525,7 @@ contract ButterMintNFTCollection is Context, ERC165, IERC721, IERC721Metadata {
     
     function buyWithMilk() public
     {
-        require(id <= maxID, "This collection has been sold out");
+        require(id <= maxID, "This series has been sold out");
         require(sellingActive, "This sale is not running");
         
         require(milk.balanceOf(msg.sender) >= salePriceMilk(purchasePrice), "You do not have sufficient milk");
@@ -1610,13 +1610,13 @@ contract ButterMintNFTCollection is Context, ERC165, IERC721, IERC721Metadata {
     
     function cancelSale() public
     {
-        require(msg.sender == creator, "You must have created this collection to cancel the sale");
+        require(msg.sender == creator, "You must have created this series to cancel the sale");
         sellingActive = false;
     }
     
     function enableSale() public
     {
-        require(msg.sender == creator, "You must have created this collection to enable the sale");
+        require(msg.sender == creator, "You must have created this series to enable the sale");
         sellingActive = true;
     }
     
